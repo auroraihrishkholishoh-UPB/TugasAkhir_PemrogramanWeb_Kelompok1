@@ -1,1 +1,8 @@
 # TugasAkhir_PemrogramanWeb_Kelompok1
+Anggota Kel :
+<br>
+AURORA IHRISH KHOLISHOH (312410037)
+<br>
+AGNES DWETASARI (312410092)
+<br>
+BAGUS SULISTYO (312410011)
