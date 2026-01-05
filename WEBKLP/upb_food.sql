@@ -1,14 +1,13 @@
 -- phpMyAdmin SQL Dump
--- version 4.8.5
+-- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Waktu pembuatan: 25 Des 2025 pada 17.26
--- Versi server: 10.1.38-MariaDB
--- Versi PHP: 5.6.40
+-- Waktu pembuatan: 05 Jan 2026 pada 16.37
+-- Versi server: 10.4.32-MariaDB
+-- Versi PHP: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-SET AUTOCOMMIT = 0;
 START TRANSACTION;
 SET time_zone = "+00:00";
 
@@ -31,8 +30,8 @@ SET time_zone = "+00:00";
 CREATE TABLE `carts` (
   `id_cart` int(11) NOT NULL,
   `id_user` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -48,7 +47,7 @@ CREATE TABLE `cart_items` (
   `qty` int(11) DEFAULT NULL,
   `harga` int(11) DEFAULT NULL,
   `subtotal` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -61,16 +60,16 @@ CREATE TABLE `orders` (
   `id_user` int(11) DEFAULT NULL,
   `total` int(11) DEFAULT NULL,
   `status` enum('pending','paid','cancelled') DEFAULT 'pending',
-  `order_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `order_date` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `orders`
 --
 
 INSERT INTO `orders` (`id_order`, `id_user`, `total`, `status`, `order_date`) VALUES
-(3, 2, 34000, 'paid', '2025-12-21 12:49:16'),
-(4, 1, 55000, 'paid', '2025-12-23 09:21:32');
+(4, 1, 55000, 'paid', '2025-12-23 09:21:32'),
+(5, 4, 15484000, 'paid', '2026-01-03 04:21:20');
 
 -- --------------------------------------------------------
 
@@ -86,15 +85,17 @@ CREATE TABLE `order_items` (
   `qty` int(11) DEFAULT NULL,
   `harga` int(11) DEFAULT NULL,
   `subtotal` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `order_items`
 --
 
 INSERT INTO `order_items` (`id_order_item`, `id_order`, `id_product`, `id_variant`, `qty`, `harga`, `subtotal`) VALUES
-(4, 3, 2, 12, 1, 34000, 34000),
-(5, 4, 1, 9, 1, 55000, 55000);
+(5, 4, 1, 9, 1, 55000, 55000),
+(6, 5, 1, 9, 100, 55000, 5500000),
+(7, 5, 2, 11, 87, 32000, 2784000),
+(8, 5, 3, 16, 180, 40000, 7200000);
 
 -- --------------------------------------------------------
 
@@ -107,19 +108,19 @@ CREATE TABLE `products` (
   `nama_produk` varchar(100) DEFAULT NULL,
   `harga` int(11) DEFAULT NULL,
   `gambar` varchar(255) DEFAULT NULL,
-  `deskripsi` text,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `deskripsi` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `products`
 --
 
 INSERT INTO `products` (`id_product`, `nama_produk`, `harga`, `gambar`, `deskripsi`, `created_at`) VALUES
-(1, 'Dimsum', 50000, 'dimsum.jpg', 'Dimsum segar dan lezat', '2025-12-21 06:27:23'),
-(2, 'Pisang Coklat', 30000, 'pisang1.png', 'Pisang coklat manis', '2025-12-21 06:27:23'),
-(3, 'Corndog', 40000, 'corndog.jpg', 'Corndog crispy dan juicy', '2025-12-21 06:27:23'),
-(6, 'APEL', 10000, '1766679046_ChatGPT Image Dec 25, 2025, 07_36_26 PM.png', 'APEL ENAK', '2025-12-25 16:10:46');
+(1, 'Dimsum', 8000, 'dimsum.jpg', 'Dimsum segar dan lezat', '2025-12-21 06:27:23'),
+(2, 'Pisang Coklat', 7500, 'pisang1.png', 'Pisang coklat manis', '2025-12-21 06:27:23'),
+(3, 'Corndog', 8000, 'corndog.jpg', 'Corndog crispy dan juicy', '2025-12-21 06:27:23'),
+(6, 'Hotang', 7000, '1767422630_download.jpg', 'Kentang dan sosis', '2025-12-25 16:10:46');
 
 -- --------------------------------------------------------
 
@@ -132,8 +133,8 @@ CREATE TABLE `product_variants` (
   `id_product` int(11) DEFAULT NULL,
   `rasa` varchar(50) DEFAULT NULL,
   `ukuran` varchar(50) DEFAULT NULL,
-  `tambahan_harga` int(11) DEFAULT '0'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `tambahan_harga` int(11) DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `product_variants`
@@ -154,7 +155,9 @@ INSERT INTO `product_variants` (`id_variant`, `id_product`, `rasa`, `ukuran`, `t
 (15, 3, 'Original', 'Besar', 5000),
 (16, 3, 'Coklat', 'Kecil', 0),
 (17, 3, 'Coklat', 'Sedang', 3000),
-(18, 3, 'Coklat', 'Besar', 5000);
+(18, 3, 'Coklat', 'Besar', 5000),
+(20, 6, 'Tidak Pedas', 'Besar', 10000),
+(21, 6, 'Sedang', 'Sedang', 8500);
 
 -- --------------------------------------------------------
 
@@ -169,9 +172,9 @@ CREATE TABLE `users` (
   `password` varchar(255) DEFAULT NULL,
   `Alamat` varchar(50) NOT NULL,
   `Nomer_Hp` varchar(20) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `role` enum('admin','customer') NOT NULL DEFAULT 'customer'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `users`
@@ -179,7 +182,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id_user`, `nama`, `email`, `password`, `Alamat`, `Nomer_Hp`, `created_at`, `role`) VALUES
 (1, 'Admin UPB', 'admin@gmail.com', 'admin123', 'Jl. Kampus UPB', '085713314567', '2025-12-21 08:40:11', 'admin'),
-(2, 'Aurora Dimas', 'Dimasihrish@gmail.com', '123456', 'Jl. Merdeka No. 10, Jakarta', '085743568970', '2025-12-21 08:40:11', 'customer');
+(4, 'aurora', 'auroraihrish@gmail.com', 'aurora', 'jl. radjiman', '2141351', '2026-01-03 04:18:44', 'customer');
 
 --
 -- Indexes for dumped tables
@@ -254,13 +257,13 @@ ALTER TABLE `cart_items`
 -- AUTO_INCREMENT untuk tabel `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id_order` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id_order` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT untuk tabel `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `id_order_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id_order_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT untuk tabel `products`
@@ -272,13 +275,13 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT untuk tabel `product_variants`
 --
 ALTER TABLE `product_variants`
-  MODIFY `id_variant` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id_variant` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT untuk tabel `users`
 --
 ALTER TABLE `users`
-  MODIFY `id_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- Ketidakleluasaan untuk tabel pelimpahan (Dumped Tables)

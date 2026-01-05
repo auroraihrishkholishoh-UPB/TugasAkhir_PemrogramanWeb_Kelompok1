@@ -7,205 +7,318 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 
-/* =========================
-   TAMBAH PRODUK
-========================= */
-if (isset($_POST['add_product'])) {
+/* ================= FILTER TAHUN & BULAN ================= */
+$tahunTerpilih = isset($_GET['tahun']) ? intval($_GET['tahun']) : date('Y');
+$bulanTerpilih = isset($_GET['bulan']) ? intval($_GET['bulan']) : "";
 
-    $nama = mysqli_real_escape_string($mysqli, $_POST['nama']);
-    $harga = (int)$_POST['harga'];
-    $deskripsi = mysqli_real_escape_string($mysqli, $_POST['deskripsi']);
+$sqlFilter = "AND YEAR(o.order_date) = $tahunTerpilih";
+$where = "";
 
-    $gambar = $_FILES['gambar']['name'];
-    $tmp = $_FILES['gambar']['tmp_name'];
+if ($bulanTerpilih) {
+    $where = "AND MONTH(o.order_date) = $bulanTerpilih";
+}
 
-    if ($gambar != '') {
-        $ext = strtolower(pathinfo($gambar, PATHINFO_EXTENSION));
-        $allowed = array('jpg','jpeg','png','webp');
+/* ================= STATISTIK ================= */
+$totalProduk = mysqli_fetch_assoc(
+    mysqli_query($mysqli, "SELECT COUNT(*) total FROM products")
+)['total'];
 
-        if (in_array($ext, $allowed)) {
-            $namaFile = time().'_'.$gambar;
-            move_uploaded_file($tmp, "img/".$namaFile);
+$totalVariant = mysqli_fetch_assoc(
+    mysqli_query($mysqli, "SELECT COUNT(*) total FROM product_variants")
+)['total'];
 
-            mysqli_query($mysqli,"
-                INSERT INTO products (nama_produk,harga,gambar,deskripsi)
-                VALUES ('$nama','$harga','$namaFile','$deskripsi')
-            ");
-        }
+/* cek tabel transaksi */
+$qTrans = mysqli_query($mysqli, "SHOW TABLES LIKE 'orders'");
+$adaTrans = mysqli_num_rows($qTrans);
+
+$totalTransaksi = 0;
+$totalOmzet = 0;
+
+if ($adaTrans) {
+    $qTotal = mysqli_fetch_assoc(
+        mysqli_query($mysqli,"
+            SELECT COUNT(*) total 
+            FROM orders o
+            WHERE o.status='paid'
+            $sqlFilter
+            $where
+        ")
+    );
+    $totalTransaksi = $qTotal['total'];
+
+    $qOmzet = mysqli_fetch_assoc(
+    mysqli_query($mysqli,"
+        SELECT SUM(o.total) total
+        FROM orders o
+        WHERE o.status='paid'
+        $sqlFilter
+        $where
+    ")
+);
+
+$totalOmzet = isset($qOmzet['total']) ? $qOmzet['total'] : 0;
+}
+
+/* ================= LIST TRANSAKSI ================= */
+$dataTransaksi = [];
+
+if ($adaTrans) {
+    $qList = mysqli_query($mysqli,"
+        SELECT o.id_order, u.nama, o.total, o.order_date
+        FROM orders o
+        JOIN users u ON o.id_user = u.id_user
+        WHERE o.status='paid'
+        $sqlFilter
+        $where
+        ORDER BY o.order_date DESC
+        LIMIT 10
+    ");
+
+    while ($r = mysqli_fetch_assoc($qList)) {
+        $dataTransaksi[] = $r;
     }
 }
 
-/* =========================
-   HAPUS PRODUK
-========================= */
-if (isset($_POST['delete_product'])) {
-    $id = (int)$_POST['id_product'];
+/* ================= CHART ================= */
+$chartLabel = [];
+$chartTrans = [];
+$chartOmzet = [];
 
-    $q = mysqli_query($mysqli,"SELECT gambar FROM products WHERE id_product=$id");
-    if ($q && mysqli_num_rows($q) > 0) {
-        $g = mysqli_fetch_assoc($q);
-        if ($g['gambar'] != '') unlink("img/".$g['gambar']);
+if ($adaTrans) {
+    $qChart = mysqli_query($mysqli,"
+        SELECT DATE(o.order_date) tgl, COUNT(*) jml, SUM(o.total) omzet
+        FROM orders o
+        WHERE o.status='paid'
+        $sqlFilter
+        $where
+        GROUP BY DATE(o.order_date)
+        ORDER BY tgl ASC
+    ");
+
+    while ($c = mysqli_fetch_assoc($qChart)) {
+        $chartLabel[] = $c['tgl'];
+        $chartTrans[] = $c['jml'];
+        $chartOmzet[] = $c['omzet'];
     }
-
-    mysqli_query($mysqli,"DELETE FROM products WHERE id_product=$id");
 }
-
-/* =========================
-   TAMBAH VARIANT
-========================= */
-if (isset($_POST['add_variant'])) {
-
-    $id_product = (int)$_POST['id_product'];
-    $rasa = mysqli_real_escape_string($mysqli, $_POST['rasa']);
-    $ukuran = mysqli_real_escape_string($mysqli, $_POST['ukuran']);
-    $tambahan = (int)$_POST['tambahan_harga'];
-
-    mysqli_query($mysqli,"
-        INSERT INTO product_variants (id_product,rasa,ukuran,tambahan_harga)
-        VALUES ($id_product,'$rasa','$ukuran',$tambahan)
-    ");
-}
-
-/* =========================
-   UPDATE VARIANT
-========================= */
-if (isset($_POST['update_variant'])) {
-
-    $id_variant = (int)$_POST['id_variant'];
-    $rasa = mysqli_real_escape_string($mysqli, $_POST['rasa']);
-    $ukuran = mysqli_real_escape_string($mysqli, $_POST['ukuran']);
-    $tambahan = (int)$_POST['tambahan_harga'];
-
-    mysqli_query($mysqli,"
-        UPDATE product_variants
-        SET rasa='$rasa', ukuran='$ukuran', tambahan_harga=$tambahan
-        WHERE id_variant=$id_variant
-    ");
-}
-
-/* =========================
-   HAPUS VARIANT
-========================= */
-if (isset($_POST['delete_variant'])) {
-    $id_variant = (int)$_POST['id_variant'];
-    mysqli_query($mysqli,"DELETE FROM product_variants WHERE id_variant=$id_variant");
-}
-
-/* =========================
-   DATA
-========================= */
-$products = mysqli_query($mysqli,"SELECT * FROM products ORDER BY id_product DESC");
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Admin Dashboard</title>
-<link rel="stylesheet" href="style.css">
-<style>
-table { width:100%; border-collapse:collapse; }
-th,td { padding:8px; border-bottom:1px solid #ddd; }
-.btn { padding:5px 10px; border:none; cursor:pointer; }
-.btn-danger { background:#e74c3c;color:#fff; }
-.btn-primary { background:#3498db;color:#fff; }
-.btn-success { background:#2ecc71;color:#fff; }
-input,select,textarea { padding:6px; margin:3px 0; width:100%; }
-.variant-box { background:#f9f9f9; padding:10px; margin-top:10px; }
-</style>
+<title>Dashboard Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 </head>
-<body>
 
-<div class="wrapper">
-<div class="main">
+<body class="bg-light">
 
-<header class="topbar">
-    <span>Hi, <?= $_SESSION['nama']; ?></span>
-    <form action="logout.php" method="post">
-        <button class="logout-btn">Logout</button>
-    </form>
-</header>
+<div class="container-fluid">
+<div class="row min-vh-100">
 
-<main class="content">
-<hr>
+<!-- SIDEBAR -->
+<aside class="col-md-2 bg-dark text-white p-3">
+    <h4 class="mb-4">ADMIN</h4>
+    <a href="dashboard.php" class="d-block text-white mb-2">
+  <i class="bi bi-speedometer2 me-2"></i> Dashboard
+</a>
 
-<!-- ================= TAMBAH PRODUK ================= -->
-<h3>Tambah Produk</h3>
-<form method="post" enctype="multipart/form-data">
-    <input name="nama" placeholder="Nama Produk" required>
-    <input type="number" name="harga" placeholder="Harga Dasar" required>
-    <textarea name="deskripsi" placeholder="Deskripsi"></textarea>
-    <input type="file" name="gambar" required>
-    <button name="add_product" class="btn btn-success">Simpan Produk</button>
+<a href="produk.php" class="d-block text-white mb-2">
+  <i class="bi bi-box-seam me-2"></i> Produk
+</a>
+
+<a href="transaksi.php" class="d-block text-white mb-2">
+  <i class="bi bi-credit-card me-2"></i> Transaksi
+</a>
+<form action="logout.php" method="post">
+<button href="logout.php" class="btn btn-danger w-100 mt-3">
+  <i class="bi bi-box-arrow-right me-2"></i> Logout
+</button>
 </form>
 
-<hr>
+</aside>
 
-<!-- ================= DATA PRODUK ================= -->
-<h3>Data Produk & Variant</h3>
+<!-- MAIN CONTENT -->
+<main class="col-md-10 p-4">
 
-<?php while($p = mysqli_fetch_assoc($products)) { ?>
+<!-- HEADER -->
+<div class="card shadow-sm mb-4">
+  <div class="card-body d-flex justify-content-between align-items-center">
+    <div>
+      <h4 class="mb-1">
+  <i class="bi bi-person-circle me-2"></i> Selamat Datang
+</h4>
 
-<div class="variant-box">
-    <h4><?= $p['nama_produk']; ?> (Rp <?= number_format($p['harga']); ?>)</h4>
-
-    <form method="post" style="display:inline">
-        <input type="hidden" name="id_product" value="<?= $p['id_product']; ?>">
-        <button name="delete_product" class="btn btn-danger"
-        onclick="return confirm('Hapus produk dan semua variant?')">
-        Hapus Produk
-        </button>
-    </form>
-
-    <p><?= $p['deskripsi']; ?></p>
-
-    <!-- LIST VARIANT -->
-    <table>
-    <tr>
-        <th>Rasa</th>
-        <th>Ukuran</th>
-        <th>Harga Tambahan</th>
-        <th>Aksi</th>
-    </tr>
-
-    <?php
-    $v = mysqli_query($mysqli,"
-        SELECT * FROM product_variants
-        WHERE id_product=".$p['id_product']
-    );
-
-    while($var = mysqli_fetch_assoc($v)) {
-    ?>
-    <tr>
-        <form method="post">
-        <td><input name="rasa" value="<?= $var['rasa']; ?>"></td>
-        <td><input name="ukuran" value="<?= $var['ukuran']; ?>"></td>
-        <td><input type="number" name="tambahan_harga" value="<?= $var['tambahan_harga']; ?>"></td>
-        <td>
-            <input type="hidden" name="id_variant" value="<?= $var['id_variant']; ?>">
-            <button name="update_variant" class="btn btn-primary">Update</button>
-            <button name="delete_variant" class="btn btn-danger"
-            onclick="return confirm('Hapus variant?')">Hapus</button>
-        </td>
-        </form>
-    </tr>
-    <?php } ?>
-
-    </table>
-
-    <!-- TAMBAH VARIANT -->
-    <h5>Tambah Variant</h5>
-    <form method="post">
-        <input type="hidden" name="id_product" value="<?= $p['id_product']; ?>">
-        <input name="rasa" placeholder="Rasa" required>
-        <input name="ukuran" placeholder="Ukuran" required>
-        <input type="number" name="tambahan_harga" placeholder="Tambahan Harga" value="0">
-        <button name="add_variant" class="btn btn-success">Tambah Variant</button>
-    </form>
+      <small class="text-muted">Kelola produk, transaksi, dan omzet</small>
+    </div>
+    <span class="badge bg-primary fs-6"><?= $_SESSION['nama']; ?></span>
+  </div>
 </div>
 
-<hr>
+<!-- STATISTIK -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-bg-primary shadow">
+      <div class="card-body">
+        <h3><i class="bi bi-box"></i> <?= $totalProduk ?></h3>
+<small>Total Produk</small>
 
-<?php } ?>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-secondary shadow">
+      <div class="card-body">
+        <h3><i class="bi bi-layers"></i> <?= $totalVariant ?></h3>
+<small>Total Variant</small>
 
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-success shadow">
+      <div class="card-body">
+        <h3><i class="bi bi-receipt"></i> <?= $totalTransaksi ?></h3>
+<small>Total Transaksi</small>
+
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-warning shadow">
+      <div class="card-body">
+        <h3><i class="bi bi-cash-stack"></i> Rp <?= number_format($totalOmzet) ?></h3>
+<small>Total Omzet</small>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FILTER -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-center">
+    <div class="col-md-3">
+  <select name="tahun" class="form-select">
+    <option value="2025" <?= $tahunTerpilih==2025?'selected':'' ?>>2025</option>
+    <option value="2026" <?= $tahunTerpilih==2026?'selected':'' ?>>2026</option>
+  </select>
+</div>
+  
+    <div class="col-md-4">
+        <select name="bulan" class="form-select">
+          <option value="">-- Semua Bulan --</option>
+          <?php for($i=1;$i<=12;$i++){ ?>
+          <option value="<?= $i ?>" <?= ($bulanTerpilih==$i?'selected':'') ?>>
+            <?= date('F', mktime(0,0,0,$i,1)); ?>
+          </option>
+          <?php } ?>
+        </select>
+      </div>
+      <div class="col-md-8">
+        <button class="btn btn-primary">
+  <i class="bi bi-funnel"></i> Filter
+</button>
+
+<a href="export_excel.php?bulan=<?= $bulanTerpilih ?>&tahun=<?= $tahunTerpilih ?>" class="btn btn-success">
+  <i class="bi bi-file-earmark-excel"></i> Excel
+</a>
+
+<a href="export_pdf.php?bulan=<?= $bulanTerpilih ?>&tahun=<?= $tahunTerpilih ?>" class="btn btn-danger">
+  <i class="bi bi-file-earmark-pdf"></i> PDF
+</a>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- CHART -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-body">
+    <h5><i class="bi bi-graph-up"></i> Grafik Transaksi</h5>
+    <canvas id="chartTransaksi"></canvas>
+  </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-body">
+    <h5><i class="bi bi-currency-dollar"></i> Grafik Omzet</h5>
+    <canvas id="chartOmzet"></canvas>
+  </div>
+</div>
+
+<!-- TABEL -->
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h5 class="mb-3">
+  <i class="bi bi-list-ul"></i> Transaksi Terbaru
+</h5>
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <td>No</td>
+          <td>Customer</td>
+          <td>Total</td>
+          <td>Tanggal</td>
+          <td>Aksi</td>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if(!$dataTransaksi){ ?>
+          <tr><td colspan="5" class="text-center">Belum ada data</td></tr>
+        <?php } ?>
+        <?php $no=1; foreach($dataTransaksi as $t){ ?>
+        <tr>
+          <td><?= $no++ ?></td>
+          <td><?= $t['nama'] ?></td>
+          <td>Rp <?= number_format($t['total']) ?></td>
+          <td><?= date('d-m-Y', strtotime($t['order_date'])) ?></td>
+          <td>
+            <a class="btn btn-sm btn-warning"
+   href="transaksi_detail.php?id=<?= $t['id_order'] ?>">
+   <i class="bi bi-eye"></i> Detail
+</a>
+          </td>
+        </tr>
+        <?php } ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+</div>
+</div>
+
+<script>
+new Chart(document.getElementById('chartTransaksi'),{
+  type:'line',
+  data:{
+    labels:<?= json_encode($chartLabel) ?>,
+    datasets:[{
+      label:'Transaksi',
+      data:<?= json_encode($chartTrans) ?>,
+      fill:true,
+      tension:.4
+    }]
+  }
+});
+
+new Chart(document.getElementById('chartOmzet'),{
+  type:'bar',
+  data:{
+    labels:<?= json_encode($chartLabel) ?>,
+    datasets:[{
+      label:'Omzet',
+      data:<?= json_encode($chartOmzet) ?>
+    }]
+  }
+});
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
